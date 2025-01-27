@@ -1,0 +1,152 @@
+{
+  "question_text": "In this assignment, let's build the **Pricing Plans** by applying the concepts of CSS Grid we have learned till now.\n\n**Refer to the below image.**\n\n<div style=\"box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px; width: 80%\">\n<Img imageSrc=\"https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_modern_responsive_web_design/niat_coding_questions/pricing_plans_output.png\" widthPercent=\"100\"/>\n</div>\n\n\n#### Instructions\n\n- Use only CSS Grid to achieve the layout in the design.\n- To align the Grid and Grid Items, use the CSS Grid Alignment Properties.\n- Grid should consist of 2 columns, each with the width of 350px.\n- Grid should consist of 2 rows, each with the height of 300px. \n\n<MultiLineNote>\nTry to achieve the design as close as possible.\n</MultiLineNote>\n\n#### Resources\n\n**Use the image URLs given below:**\n\n- [https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat\\_modern\\_responsive\\_web\\_design/niat\\_coding\\_questions/pricing\\_plans\\_bg\\_1.jpg](https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat\\_modern\\_responsive\\_web\\_design/niat\\_coding\\_questions/pricing\\_plans\\_bg\\_1.jpg)\n\n<br/>\n\n\n**CSS Colors used:**\n\nBackground color Hex Code Values:\n\n<div style=\"background-color: black; width: 150px; padding: 10px; color: white\">black</div>\n<div style=\"background-color: #2c353d; width: 150px; padding: 10px; color: white\">\\#2c353d</div>\n<div style=\"background-color: #ff6e30; width: 150px; padding: 10px; color: black\">\\#ff6e30</div>\n\n<br/>\n\nText Color Hex Code Values:\n\n<div style=\"background-color: #ffffff; width: 150px; padding: 10px; color: black\">white</div>\n<div style=\"background-color: #ff6e30; width: 150px; padding: 10px; color: black\">\\#ff6e30</div>\n\n<br/>\n\n\n<br/>\n\n**CSS Font families used:**\n\n- Roboto\n",
+  "question_id": "8cd23a64-1ecb-435b-af16-dab583305aca",
+  "short_text": "Pricing Plans",
+  "question_type": "HTML_CODING",
+  "language": "ENGLISH",
+  "skills": [],
+  "content_type": "MARKDOWN",
+  "toughness": "EASY",
+  "question_asked_by_companies_info": [],
+  "multimedia": [],
+  "default_code_metadata": [
+    {
+      "code_data": "<!DOCTYPE html>\n<html>\n  <head></head>\n  <body>\n    Your code goes here\n  </body>\n</html>\n",
+      "language": "HTML"
+    },
+    {
+      "code_data": "@import url(\"https://fonts.googleapis.com/css2?family=Bree+Serif&family=Caveat:wght@400;700&family=Lobster&family=Monoton&family=Open+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display+SC:ital,wght@0,400;0,700;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,700&family=Roboto:ital,wght@0,400;0,700;1,400;1,700&family=Source+Sans+Pro:ital,wght@0,400;0,700;1,700&family=Work+Sans:ital,wght@0,400;0,700;1,700&display=swap\");\n",
+      "language": "CSS"
+    },
+    {
+      "code_data": "",
+      "language": "JAVASCRIPT"
+    }
+  ],
+  "solutions_metadata": [
+    {
+      "order": 1,
+      "title": {
+        "content": "Pricing Plans",
+        "content_type": "TEXT"
+      },
+      "description": {
+        "content": "An approach of building a Pricing Plans Layout.",
+        "content_type": "TEXT"
+      },
+      "code_details": [
+        {
+          "default_code": true,
+          "language": "HTML",
+          "code_data": "<!DOCTYPE html>\n<html>\n  <head></head>\n  <body>\n    <div class=\"plans-container\">\n      <h1 class=\"title\">Pricing Plans</h1>\n      <p class=\"subtitle\">Every plan includes 30 day free trial</p>\n      <div class=\"grid-container\">\n        <div class=\"plan-card\">\n          <h1 class=\"price\">\n            10.00 <span class=\"per-month-text\">/ Per Month</span>\n          </h1>\n          <p class=\"description\">\n            Perfect for when you want to host your blog or a hobby side project.\n          </p>\n          <button class=\"get-start-btn\">Get Started Today</button>\n        </div>\n        <div class=\"plan-card\">\n          <h1 class=\"price\">\n            80.00 <span class=\"per-month-text\">/ Per Month</span>\n          </h1>\n          <p class=\"description\">\n            Perfect for hosting blogs with lots of traffic or heavy development\n            projects.\n          </p>\n          <button class=\"get-start-btn\">Get Started Today</button>\n        </div>\n        <div class=\"plan-card\">\n          <h1 class=\"price\">\n            30.00 <span class=\"per-month-text\">/ Per Month</span>\n          </h1>\n          <p class=\"description\">\n            Perfect for hosting production websites & API services with high\n            traffic load.\n          </p>\n          <button class=\"get-start-btn\">Get Started Today</button>\n        </div>\n        <div class=\"plan-card\">\n          <h1 class=\"price\">\n            50.00 <span class=\"per-month-text\">/ Per Month</span>\n          </h1>\n          <p class=\"description\">\n            Perfect for large organisations which controls high traffic load.\n          </p>\n          <button class=\"get-start-btn\">Get Started Today</button>\n        </div>\n      </div>\n    </div>\n  </body>\n</html>\n"
+        },
+        {
+          "default_code": true,
+          "language": "CSS",
+          "code_data": "@import url(\"https://fonts.googleapis.com/css2?family=Bree+Serif&family=Caveat:wght@400;700&family=Lobster&family=Monoton&family=Open+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display+SC:ital,wght@0,400;0,700;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,700&family=Roboto:ital,wght@0,400;0,700;1,400;1,700&family=Source+Sans+Pro:ital,wght@0,400;0,700;1,700&family=Work+Sans:ital,wght@0,400;0,700;1,700&display=swap\");\n\n* {\n  font-family: \"Roboto\";\n  color: white;\n  box-sizing: border-box;\n}\n\n.plans-container {\n  font-family: Roboto;\n  background-color: black;\n  min-height: 100vh;\n  padding: 20px;\n  text-align: center;\n}\n\n.title {\n  color: #ff6e30;\n  font-size: 36px;\n}\n\n.subtitle {\n  font-size: 16px;\n  margin-bottom: 40px;\n}\n\n.grid-container {\n  display: grid;\n  grid-template-columns: repeat(2, 350px);\n  grid-template-rows: repeat(2, 300px);\n  justify-content: center;\n  gap: 20px;\n}\n\n.plan-card {\n  background-color: #2c353d;\n  border-radius: 8px;\n  padding: 20px;\n  background-image: url(\"https://s3.ap-south-1.amazonaws.com/new-assets.ccbp.in/frontend/loading-data/niat_modern_responsive_web_design/niat_coding_questions/pricing_plans_bg_1.jpg\");\n  background-size: cover;\n  align-content: end;\n}\n\n.plan-icon {\n  width: 30px;\n  height: 30px;\n}\n\n.price {\n  font-size: 36px;\n  margin: 0;\n}\n\n.per-month-text {\n  font-size: 12px;\n}\n\n.description {\n  font-size: 16px;\n}\n\n.get-start-btn {\n  background-color: #ff6e30;\n  color: white;\n  border-width: 0px;\n  border-radius: 5px;\n  padding: 10px 20px;\n  font-size: 16px;\n}\n"
+        },
+        {
+          "default_code": true,
+          "language": "JAVASCRIPT",
+          "code_data": ""
+        }
+      ]
+    }
+  ],
+  "hints": [],
+  "tag_names": ["GRID_ALIGNMENT_PRACTICE_1"],
+  "concept_tag_names": [],
+  "read_only_languages": [],
+  "test_cases": [
+    {
+      "id": "eb51b773-4e3c-45d2-be2f-5aee8ffea6fc",
+      "display_text": "Page should consist of an HTML container element with CSS property display and value grid",
+      "criteria": "assert.isAtLeast(  $(\"#htmlPreview\")    .find(\"div\")    .toArray()    .filter((element, index) => $(element).css(\"display\") === \"grid\").length,  1);",
+      "testcase_evaluation_type": "CLIENT_SIDE_EVALUATION",
+      "order": 1,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "d35ee888-2c03-4a69-aacf-95532d75736a",
+      "display_text": "Page should consist of at least 4 HTML container elements",
+      "criteria": "assert.isAtLeast($(\"#htmlPreview\").find(\"div\").length, 4);",
+      "testcase_evaluation_type": "CLIENT_SIDE_EVALUATION",
+      "order": 2,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "9135b6c4-99a4-4fc6-b61d-c33536020b7a",
+      "display_text": "Page should consist of at least 4 HTML button elements in the HTML container element",
+      "criteria": "assert.isAtLeast($(\"#htmlPreview\").find(\"div button\").length, 4);",
+      "testcase_evaluation_type": "CLIENT_SIDE_EVALUATION",
+      "order": 3,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "97b6f0ac-5849-4858-b28f-bb0933c4cd69",
+      "display_text": "Page should consist of at least 4 HTML button elements with the CSS property background-color and value #ff6e30",
+      "criteria": "assert.isAtLeast(  $(\"#htmlPreview\")    .find(\"div button\")    .toArray()    .filter(      (element, index) =>        $(element).css(\"background-color\") === \"rgb(255, 110, 48)\"    ).length,  1);",
+      "testcase_evaluation_type": "CLIENT_SIDE_EVALUATION",
+      "order": 4,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "4529f6d5-7a11-4271-be53-8a43456f4fb9",
+      "display_text": "Page should consist of at least 4 HTML container elements with the CSS property background-image",
+      "criteria": "assert.isAtLeast(  $(\"#htmlPreview\")    .find(\"div\")    .toArray()    .filter(      (element, index) =>        $(element).css(\"background-image\") != \"none\" &&        $(element).css(\"background-image\") != undefined    ).length,  4);",
+      "testcase_evaluation_type": "CLIENT_SIDE_EVALUATION",
+      "order": 5,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "aa000d7d-0a16-44d0-968f-fa9c305c9cfe",
+      "display_text": "CSS Code should consist of the CSS property grid-template-columns and the value containing repeat function with 2 columns, each of width 350px",
+      "criteria": "const csstree = require(\"css-tree\");const fs = require(\"fs\");const path = require(\"path\");describe(\"Sample CSS test cases\", () => {  test(\"Check whether the css selector .workout-grid has grid-template-columns property with repeat function\", (done) => {    const testPromise = Promise.resolve(\"Success\");    let isElementFound = false;    return testPromise.then(() => {      fs.readFile(        path.resolve(__dirname, \"./index.css\"),        \"utf8\",        async (err, data) => {          if (err) {            expect(isElementFound).toEqual(true);            done();          } else {            let ast = csstree.parse(data, { parseRulePrelude: false });            csstree.walk(ast, function (node) {              if (node.type === \"Rule\") {                let generateSubTree = csstree.generate(node);                let subAst = csstree.parse(generateSubTree, {                  parseValue: false,                });                csstree.walk(subAst, function (node) {                  if (                    node.type === \"Declaration\" &&                    node.property === \"grid-template-columns\"                  ) {                    const propertyValue = node.value.value.toLowerCase();                    const regex = /repeat\\(\\s*2\\s*,\\s*350px\\)/;                    const isPropertyValuePresent = regex.test(propertyValue);                    if (isPropertyValuePresent) {                      isElementFound = true;                      return csstree.walk.break;                    }                  }                });              }            });            expect(isElementFound).toEqual(true);            done();          }        }      );    });  });});",
+      "testcase_evaluation_type": "CSS_PARSER",
+      "order": 6,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "e2301491-c893-4a0a-ab6c-c56ab46ad205",
+      "display_text": "CSS Code should consist of the CSS property grid-template-rows and the value containing repeat function with 2 rows, each of width 300px",
+      "criteria": "const csstree = require(\"css-tree\");const fs = require(\"fs\");const path = require(\"path\");describe(\"Sample CSS test cases\", () => {  test(\"Check whether the css selector .workout-grid has grid-template-columns property with repeat function\", (done) => {    const testPromise = Promise.resolve(\"Success\");    let isElementFound = false;    return testPromise.then(() => {      fs.readFile(        path.resolve(__dirname, \"./index.css\"),        \"utf8\",        async (err, data) => {          if (err) {            expect(isElementFound).toEqual(true);            done();          } else {            let ast = csstree.parse(data, { parseRulePrelude: false });            csstree.walk(ast, function (node) {              if (node.type === \"Rule\") {                let generateSubTree = csstree.generate(node);                let subAst = csstree.parse(generateSubTree, {                  parseValue: false,                });                csstree.walk(subAst, function (node) {                  if (                    node.type === \"Declaration\" &&                    node.property === \"grid-template-rows\"                  ) {                    const propertyValue = node.value.value.toLowerCase();                    const regex = /repeat\\(\\s*2\\s*,\\s*300px\\)/;                    const isPropertyValuePresent = regex.test(propertyValue);                    if (isPropertyValuePresent) {                      isElementFound = true;                      return csstree.walk.break;                    }                  }                });              }            });            expect(isElementFound).toEqual(true);            done();          }        }      );    });  });});",
+      "testcase_evaluation_type": "CSS_PARSER",
+      "order": 7,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "f1b79a41-8a4a-4a1f-9828-dda022a735cf",
+      "display_text": "CSS Code should consist of the CSS property gap and the value in px",
+      "criteria": "const csstree = require(\"css-tree\");const fs = require(\"fs\");const path = require(\"path\");describe(\"Sample CSS test cases\", () => {  test(\"Check whether the css selector .grid-container has gap property in px\", (done) => {    const testPromise = Promise.resolve(\"Success\");    let isElementFound = false;    return testPromise.then(() => {      fs.readFile(        path.resolve(__dirname, \"./index.css\"),        \"utf8\",        async (err, data) => {          if (err) {            expect(isElementFound).toEqual(true);            done();          } else {            let ast = csstree.parse(data, { parseRulePrelude: false });            csstree.walk(ast, function (node) {              if (node.type === \"Rule\") {                let generateSubTree = csstree.generate(node);                let subAst = csstree.parse(generateSubTree, {                  parseValue: false,                });                csstree.walk(subAst, function (node) {                  if (                    node.type === \"Declaration\" &&                    node.property === \"gap\" &&                    node.value.value.endsWith(\"px\")                  ) {                    isElementFound = true;                    return csstree.walk.break;                  }                });              }            });            expect(isElementFound).toEqual(true);            done();          }        }      );    });  });});",
+      "testcase_evaluation_type": "CSS_PARSER",
+      "order": 8,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "c0526e72-6370-4281-b594-c0b7b253578e",
+      "display_text": "CSS Code should consist of the CSS property justify-content and the desired value",
+      "criteria": "const csstree = require(\"css-tree\");const fs = require(\"fs\");const path = require(\"path\");describe(\"Sample CSS test cases\", () => {  test(\"Check whether the css selector .grid-container has gap property in px\", (done) => {    const testPromise = Promise.resolve(\"Success\");    let isElementFound = false;    return testPromise.then(() => {      fs.readFile(        path.resolve(__dirname, \"./index.css\"),        \"utf8\",        async (err, data) => {          if (err) {            expect(isElementFound).toEqual(true);            done();          } else {            let ast = csstree.parse(data, { parseRulePrelude: false });            csstree.walk(ast, function (node) {              if (node.type === \"Rule\") {                let generateSubTree = csstree.generate(node);                let subAst = csstree.parse(generateSubTree, {                  parseValue: false,                });                csstree.walk(subAst, function (node) {                  if (                    node.type === \"Declaration\" &&                    node.property === \"justify-content\" &&                    node.value.value.trim() === \"center\"                  ) {                    isElementFound = true;                    return csstree.walk.break;                  }                });              }            });            expect(isElementFound).toEqual(true);            done();          }        }      );    });  });});",
+      "testcase_evaluation_type": "CSS_PARSER",
+      "order": 9,
+      "reason_for_failure": null,
+      "weightage": 5
+    },
+    {
+      "id": "c2c6349a-b1b8-4aed-8bab-99d45fea891a",
+      "display_text": "CSS Code should consist of the CSS property align-content and the desired value",
+      "criteria": "const csstree = require(\"css-tree\");const fs = require(\"fs\");const path = require(\"path\");describe(\"Sample CSS test cases\", () => {  test(\"Check whether the css selector .grid-container has gap property in px\", (done) => {    const testPromise = Promise.resolve(\"Success\");    let isElementFound = false;    return testPromise.then(() => {      fs.readFile(        path.resolve(__dirname, \"./index.css\"),        \"utf8\",        async (err, data) => {          if (err) {            expect(isElementFound).toEqual(true);            done();          } else {            let ast = csstree.parse(data, { parseRulePrelude: false });            csstree.walk(ast, function (node) {              if (node.type === \"Rule\") {                let generateSubTree = csstree.generate(node);                let subAst = csstree.parse(generateSubTree, {                  parseValue: false,                });                csstree.walk(subAst, function (node) {                  if (                    node.type === \"Declaration\" &&                    node.property === \"align-content\" &&                    node.value.value.trim().includes(\"end\")                  ) {                    isElementFound = true;                    return csstree.walk.break;                  }                });              }            });            expect(isElementFound).toEqual(true);            done();          }        }      );    });  });});",
+      "testcase_evaluation_type": "CSS_PARSER",
+      "order": 10,
+      "reason_for_failure": null,
+      "weightage": 5
+    }
+  ]
+}
