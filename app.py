@@ -283,7 +283,7 @@ def main():
     )
     
     if menu == "Home":
-        st.write("Welcome to the Review Platform!")
+        st.write("Welcome to the Review Copilot!")
         st.write("Please select a section from the sidebar.")
         
     elif menu == "Cheat Sheet":
