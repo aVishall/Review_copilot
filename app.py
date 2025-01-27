@@ -19,6 +19,8 @@ import openai
 import subprocess
 from PIL import Image  # Import PIL for image handling
 import matplotlib.pyplot as plt
+import sqlite3
+import PyPDF2  # Importing PyPDF2 for PDF handling
 
 def set_openai_api_key():
     """Set the OpenAI API key for Azure OpenAI."""
@@ -230,6 +232,43 @@ def display_review_report(question_data, cheatsheet_content):
                 st.code(result['input'])
         st.write("---")
 
+def store_cheat_sheet(content):
+    """Store the cheat sheet content in the database."""
+    conn = sqlite3.connect('cheat_sheets.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO cheat_sheets (content) VALUES (?)', (content,))
+    conn.commit()
+    conn.close()
+
+def fetch_cheat_sheets():
+    """Fetch all cheat sheets from the database."""
+    conn = sqlite3.connect('cheat_sheets.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM cheat_sheets')
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def process_uploaded_file(uploaded_file):
+    """Process the uploaded file based on its type."""
+    if uploaded_file.type == "application/pdf":
+        # Read PDF file
+        reader = PyPDF2.PdfReader(uploaded_file)
+        content = ""
+        for page in reader.pages:
+            content += page.extract_text() + "\n"
+        return content
+    elif uploaded_file.type in ["text/plain", "text/markdown"]:
+        # Read text or markdown file
+        return uploaded_file.read().decode("utf-8")
+    elif uploaded_file.type == "application/json":
+        # Read JSON file
+        cheat_sheet_data = json.load(uploaded_file)
+        return json.dumps(cheat_sheet_data, indent=2)  # Convert JSON to string
+    else:
+        st.warning("Unsupported file type. Please upload PDF, MD, TXT, or JSON files.")
+        return None
+
 def main():
     st.title("NxtReview")
     
@@ -237,16 +276,33 @@ def main():
     if 'selected_question' not in st.session_state:
         st.session_state.selected_question = 0
     
-    # Main menu with additional review option
+    # Main menu with updated "Cheat Sheet" option
     menu = st.sidebar.selectbox(
         "Select Section",
-        ["Home", "Review Questions","MCQs", "Coding Questions"]
+        ["Home", "Cheat Sheet", "MCQs", "Coding Questions"]
     )
     
     if menu == "Home":
         st.write("Welcome to the Review Platform!")
         st.write("Please select a section from the sidebar.")
         
+    elif menu == "Cheat Sheet":
+        st.header("Cheat Sheet Content")
+        
+        # File uploader for cheat sheet content
+        uploaded_file = st.file_uploader("Upload Cheat Sheet File", type=['txt', 'json', 'md'], key="cheat_sheet_upload")
+        
+        if uploaded_file:
+            # Extract and display cheat sheet content
+            if uploaded_file.type == "application/json":
+                cheat_sheet_data = json.load(uploaded_file)
+                st.write("### Cheat Sheet Content (JSON):")
+                st.json(cheat_sheet_data)  # Display JSON content nicely
+            else:
+                cheat_sheet_content = uploaded_file.read().decode("utf-8")
+                st.write("### Cheat Sheet Content:")
+                st.markdown(cheat_sheet_content)  # Display text or markdown content
+
     elif menu == "MCQs":
         show_mcq_review_section()
         
@@ -256,34 +312,6 @@ def main():
         
         if uploaded_file:
             process_questions(uploaded_file, is_review_mode=False)
-            
-    elif menu == "Review Questions":
-        st.header("Question Review")
-        
-        # Portal Login in sidebar
-        st.sidebar.header("Portal Login")
-        portal_url = st.sidebar.text_input("Portal URL", "https://learning-beta.earlywave.in/")
-        mobile = st.sidebar.text_input("Mobile Number", "8297270704")
-        otp = st.sidebar.text_input("OTP", "456789", type="password")
-        
-        if st.sidebar.button("Login & Load Cheatsheets"):
-            with st.spinner("Logging in and loading cheatsheets..."):
-                cheatsheet_content = login_and_get_cheatsheets(portal_url, mobile, otp)
-                if cheatsheet_content:
-                    st.session_state.cheatsheet_content = cheatsheet_content
-                    st.success(f"Successfully loaded {len(cheatsheet_content)} cheatsheets")
-                    
-                    # Display cheatsheet links
-                    st.subheader("Loaded Cheatsheets:")
-                    for sheet in cheatsheet_content:
-                        st.write(f"- {sheet['link']}")
-                else:
-                    st.error("Failed to load cheatsheets. Please check the console for details.")
-        
-        uploaded_file = st.file_uploader("Upload Question JSON", type=['json'], key="review_upload")
-        
-        if uploaded_file:
-            process_questions(uploaded_file, is_review_mode=True)
 
 def process_questions(uploaded_file, is_review_mode=False):
     # Load the JSON data
@@ -333,24 +361,70 @@ def show_mcq_review_section():
                 question_files = {
                     'default_new': [],
                     'code_analysis': [],
-                    'fib_html': []
+                    'fib_html': []  # Ensure this is included for FIB HTML questions
                 }
                 
                 # Categorize files
                 for file in file_list:
                     try:
-                        with zip_file.open(file) as json_file:
-                            data = json.load(json_file)
-                            questions = data if isinstance(data, list) else [data]
-                            
-                            for q in questions:
-                                q_type = q.get('question_type', '')
-                                if q_type == 'MULTIPLE_CHOICE':
-                                    question_files['default_new'].append((file, q))
-                                elif q_type == 'CODE_ANALYSIS_MULTIPLE_CHOICE':
-                                    question_files['code_analysis'].append((file, q))
-                                elif q_type == 'FIB_HTML_CODING':
-                                    question_files['fib_html'].append((file, q))
+                        # Log the file being processed
+                        st.write(f"Processing file: {file}")
+                        
+                        # Check if the file is in the FIB_HTML_CODING folder and is a JSON file
+                        if 'FIB_HTML_CODING/' in file and file.endswith('.json'):
+                            with zip_file.open(file) as json_file:
+                                data = json.load(json_file)
+                                
+                                # Ensure data is a list
+                                if isinstance(data, list):
+                                    for q in data:
+                                        if isinstance(q, dict):  # Ensure each question is a dictionary
+                                            q_type = q.get('question_type', '')
+                                            content_type = q.get('content_type', '')
+
+                                            if q_type == 'FIB_HTML_CODING' and content_type == 'MARKDOWN':
+                                                # Extract required fields for FIB HTML questions
+                                                question_id = q.get('question_id', '')
+                                                question_text = q.get('question_text', '')
+                                                tag_names = q.get('tag_names', [])
+                                                
+                                                # Extract initial code from fib_html_coding
+                                                initial_code = ""
+                                                if 'fib_html_coding' in q:
+                                                    for code_block in q['fib_html_coding']:
+                                                        if isinstance(code_block, dict):  # Ensure it's a dictionary
+                                                            for block in code_block.get('code_blocks', []):
+                                                                initial_code += block.get('code', '') + "\n"
+                                                
+                                                # Extract solution code
+                                                solution_code = ""
+                                                if 'solution' in q:
+                                                    for solution in q['solution']:
+                                                        if isinstance(solution, dict):  # Ensure it's a dictionary
+                                                            for block in solution.get('code_blocks', []):
+                                                                solution_code += block.get('code', '') + "\n"
+                                                
+                                                # Append extracted data to the fib_html list
+                                                question_files['fib_html'].append({
+                                                    'question_id': question_id,
+                                                    'question_text': question_text,
+                                                    'tag_names': tag_names,
+                                                    'initial_code': initial_code.strip(),
+                                                    'solution_code': solution_code.strip()
+                                                })
+                                else:
+                                    st.warning(f"Expected a list of questions in file {file}, but got: {type(data)}")
+                        elif file.endswith('.json'):  # Process other JSON files outside FIB_HTML_CODING
+                            with zip_file.open(file) as json_file:
+                                data = json.load(json_file)
+                                questions = data if isinstance(data, list) else [data]
+                                
+                                for q in questions:
+                                    q_type = q.get('question_type', '')
+                                    if q_type == 'MULTIPLE_CHOICE':
+                                        question_files['default_new'].append((file, q))
+                                    elif q_type == 'CODE_ANALYSIS_MULTIPLE_CHOICE':
+                                        question_files['code_analysis'].append((file, q))
                     except Exception as e:
                         st.error(f"Error processing file {file}: {str(e)}")
                 
@@ -368,7 +442,7 @@ def show_mcq_review_section():
                     review_code_analysis_mcqs(question_files['code_analysis'])
                     
                 with tab3:
-                    review_fib_html_questions(question_files['fib_html'])
+                    review_fib_html_questions()
                     
         except Exception as e:
             st.error(f"Error processing ZIP: {str(e)}")
@@ -523,7 +597,8 @@ def ai_review_default_mcq(question_content, options, question_key):
     results = {
         'Grammar': {'status': True, 'message': 'No grammar issues found'},
         'Learning Outcome': {'status': True, 'message': 'Learning outcome is achieved'},
-        'Technical Accuracy': {'status': True, 'message': 'Answer appears technically accurate'}
+        'Technical Accuracy': {'status': True, 'message': 'Answer appears technically accurate'},
+        'Cheat Sheet Relevance': {'status': True, 'message': 'MCQ is relevant to the cheat sheet.'}
     }
     
     # Check grammar using GPT
@@ -905,81 +980,79 @@ def code_analysis_interface():
         # Call the verification function
         verify_output_with_gpt(question_text, code_data, wrong_answers, output)
 
-def review_fib_html_questions(questions):
-    if not questions:
-        st.info("No FIB HTML questions found")
-        return
-        
-    # Display total question count
-    st.info(f"Total FIB HTML Questions: {len(questions)}")
+def review_fib_html_questions():
+    # Check if the FIB_HTML_CODING folder exists in the uploaded ZIP
+    uploaded_zip = st.file_uploader("Upload Question JSONs", type=['zip'])
     
-    # Initialize session state for index if not exists
-    if 'fib_html_index' not in st.session_state:
-        st.session_state.fib_html_index = 0
-    
-    # Create dropdown with formatted question number and ID
-    question_options = [f'Question {str(i+1).zfill(2)}: {q[1].get("question_id", "N/A")}' 
-                       for i, q in enumerate(questions)]
-    
-    selected_index = st.selectbox(
-        "Select Question",
-        range(len(questions)),
-        format_func=lambda x: question_options[x],
-        key="fib_html_selector",
-        index=st.session_state.fib_html_index
-    )
-    
-    # Update session state when dropdown changes
-    st.session_state.fib_html_index = selected_index
-    
-    _, question = questions[selected_index]
-    
-    # Extract required fields
-    question_id = question.get('question_id', 'N/A')
-    question_text = question.get('question_text', '')
-    html_code = extract_code_blocks(question.get('fib_html_coding', []), 'HTML')
-    css_code = extract_code_blocks(question.get('fib_html_coding', []), 'CSS')
-    solution_html = extract_code_blocks(question.get('solution', []), 'HTML')
-    solution_css = extract_code_blocks(question.get('solution', []), 'CSS')
-    test_cases = question.get('test_cases', [])
-    
-    st.subheader(f"Question ID: {question_id}")
-    
-    with st.expander("Question Details", expanded=True):
-        st.write("**Question:**", question_text)
-        st.write("**Initial Code:**")
-        st.code(html_code, language='html')
-        st.code(css_code, language='css')
-        st.write("**Solution Code:**")
-        st.code(solution_html, language='html')
-        st.code(solution_css, language='css')
-    
-    with st.expander("Review Results", expanded=True):
-        review_results = ai_review_fib_html(question_text, html_code, css_code, solution_html, solution_css, test_cases)
-        
-        for category, result in review_results.items():
-            if result['status']:
-                st.success(f"✅ {category}: {result['message']}")
-            else:
-                st.warning(f"⚠️ {category}: {result['message']}")
-    
-    # Navigation buttons in columns
-    col1, col2, col3 = st.columns([1, 4, 1])
-    
-    with col1:
-        if st.button("← Previous", key="prev_fib"):
-            if st.session_state.fib_html_index > 0:
-                st.session_state.fib_html_index -= 1
-                st.rerun()
-    
-    with col2:
-        st.write(f"Question {selected_index + 1} of {len(questions)}")
-    
-    with col3:
-        if st.button("Next →", key="next_fib"):
-            if st.session_state.fib_html_index < len(questions) - 1:
-                st.session_state.fib_html_index += 1
-                st.rerun()
+    if uploaded_zip:
+        try:
+            with zipfile.ZipFile(uploaded_zip) as zip_file:
+                # Look for the FIB_HTML_CODING folder
+                fib_html_file = None
+                for file in zip_file.namelist():
+                    # Check if the file is in the FIB_HTML_CODING folder
+                    if 'FIB_HTML_CODING/' in file and file.endswith('.json'):
+                        fib_html_file = file
+                        break
+                
+                if fib_html_file is None:
+                    st.error("No JSON file found in the FIB_HTML_CODING folder.")
+                    return
+                
+                with zip_file.open(fib_html_file) as json_file:
+                    data = json.load(json_file)
+                    
+                    # Ensure data is a list
+                    if not isinstance(data, list):
+                        st.warning("Expected a list of questions in the JSON file.")
+                        return
+                    
+                    fib_questions = [q for q in data if isinstance(q, dict) and q.get('question_type') == 'FIB_HTML_CODING']
+                    
+                    if not fib_questions:
+                        st.info("No FIB HTML questions found in the JSON.")
+                        return
+                    
+                    # Create a dropdown to select a question
+                    question_options = [f"{q.get('question_id', 'Unknown')}: {q.get('question_text', 'No text')}" for q in fib_questions]
+                    selected_question_index = st.selectbox("Select a FIB HTML Question", range(len(fib_questions)), format_func=lambda x: question_options[x])
+                    
+                    # Get the selected question
+                    selected_question = fib_questions[selected_question_index]
+                    
+                    # Extract required fields
+                    question_id = selected_question.get('question_id', 'N/A')
+                    question_text = selected_question.get('question_text', 'N/A')
+                    
+                    # Extract initial code
+                    initial_code = ""
+                    fib_html_coding = selected_question.get('fib_html_coding', [])
+                    if isinstance(fib_html_coding, list):
+                        for code_block in fib_html_coding:
+                            if isinstance(code_block, dict):  # Ensure it's a dictionary
+                                for block in code_block.get('code_blocks', []):
+                                    if isinstance(block, dict):  # Ensure each block is a dictionary
+                                        initial_code += block.get('code', '') + "\n"
+                    
+                    # Extract solution code
+                    solution_code = ""
+                    solution = selected_question.get('solution', [])
+                    if isinstance(solution, list):
+                        for sol in solution:
+                            if isinstance(sol, dict):  # Ensure it's a dictionary
+                                for block in sol.get('code_blocks', []):
+                                    if isinstance(block, dict):  # Ensure each block is a dictionary
+                                        solution_code += block.get('code', '') + "\n"
+                    
+                    # Display the extracted information
+                    st.subheader(f"Question ID: {question_id}")
+                    st.write("**Question Text:**", question_text)
+                    st.write("**Initial Code:**")
+                    st.code(initial_code.strip(), language='html')
+                    st.write("**Solution Code:**")
+                    st.code(solution_code.strip(), language='html')
+        except Exception as e:
+            st.error(f"Error processing ZIP: {str(e)}")
 
 def ai_review_fib_html(question_text, html_code, css_code, solution_html, solution_css, test_cases):
     """AI-based review for FIB HTML questions"""
@@ -1063,11 +1136,49 @@ def extract_fib_questions(questions):
     
     return fib_questions
 
+def create_database():
+    conn = sqlite3.connect('cheat_sheets.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cheat_sheets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
+def check_mcq_relevance_with_cheat_sheet(cheat_sheet_content, mcq_question):
+    """Check if the MCQ is relevant to the cheat sheet content."""
+    prompt = f"Given the following cheat sheet content:\n\n{cheat_sheet_content}\n\n" \
+             f"Is the following MCQ relevant to this content?\n\n" \
+             f"MCQ: {mcq_question}\n" \
+             f"Please respond with 'Relevant' or 'Not Relevant'."
+    
+    response = openai.ChatCompletion.create(
+        engine="gpt-4o",  # Use your specific engine
+        messages=[
+            {"role": "system", "content": "You are a knowledgeable assistant."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    
+    return response['choices'][0]['message']['content'].strip()
+
+def display_mcq_with_relevance(mcq_questions):
+    """Display MCQs with relevance check against the cheat sheet."""
+    for question in mcq_questions:
+        relevance = check_mcq_relevance_with_cheat_sheet(cheat_sheet_content, question)
+        
+        if relevance.lower() == "relevant":
+            st.success(f"✅ {question} - Relevant to the cheat sheet.")
+        else:
+            st.warning(f"⚠️ {question} - Not relevant to the cheat sheet.")
 
 if __name__ == "__main__":
     st.set_page_config(
-        page_title="NxtReview",
+        page_title="NxtWave Review Platform",
         layout="wide"
     )
+    create_database()  # Ensure the database is created
     main()
