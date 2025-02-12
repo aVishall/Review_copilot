@@ -21,6 +21,7 @@ from PIL import Image  # Import PIL for image handling
 import matplotlib.pyplot as plt
 import sqlite3
 import PyPDF2  # Importing PyPDF2 for PDF handling
+import time
 
 def set_openai_api_key():
     """Set the OpenAI API key for Azure OpenAI."""
@@ -283,7 +284,7 @@ def main():
     )
     
     if menu == "Home":
-        st.write("Welcome to the Review Copilot!")
+        st.write("Welcome to the Review Platform!")
         st.write("Please select a section from the sidebar.")
         
     elif menu == "Cheat Sheet":
@@ -361,161 +362,613 @@ def show_mcq_review_section():
                 question_files = {
                     'default_new': [],
                     'code_analysis': [],
-                    'fib_html': []  # Ensure this is included for FIB HTML questions
+                    'fib_html': []
                 }
                 
                 # Categorize files
                 for file in file_list:
                     try:
-                        # Log the file being processed
-                        st.write(f"Processing file: {file}")
-                        
-                        # Check if the file is in the FIB_HTML_CODING folder and is a JSON file
-                        if 'FIB_HTML_CODING/' in file and file.endswith('.json'):
-                            with zip_file.open(file) as json_file:
-                                data = json.load(json_file)
-                                
-                                # Ensure data is a list
-                                if isinstance(data, list):
-                                    for q in data:
-                                        if isinstance(q, dict):  # Ensure each question is a dictionary
-                                            q_type = q.get('question_type', '')
-                                            content_type = q.get('content_type', '')
-
-                                            if q_type == 'FIB_HTML_CODING' and content_type == 'MARKDOWN':
-                                                # Extract required fields for FIB HTML questions
-                                                question_id = q.get('question_id', '')
-                                                question_text = q.get('question_text', '')
-                                                tag_names = q.get('tag_names', [])
-                                                
-                                                # Extract initial code from fib_html_coding
-                                                initial_code = ""
-                                                if 'fib_html_coding' in q:
-                                                    for code_block in q['fib_html_coding']:
-                                                        if isinstance(code_block, dict):  # Ensure it's a dictionary
-                                                            for block in code_block.get('code_blocks', []):
-                                                                initial_code += block.get('code', '') + "\n"
-                                                
-                                                # Extract solution code
-                                                solution_code = ""
-                                                if 'solution' in q:
-                                                    for solution in q['solution']:
-                                                        if isinstance(solution, dict):  # Ensure it's a dictionary
-                                                            for block in solution.get('code_blocks', []):
-                                                                solution_code += block.get('code', '') + "\n"
-                                                
-                                                # Append extracted data to the fib_html list
-                                                question_files['fib_html'].append({
-                                                    'question_id': question_id,
-                                                    'question_text': question_text,
-                                                    'tag_names': tag_names,
-                                                    'initial_code': initial_code.strip(),
-                                                    'solution_code': solution_code.strip()
-                                                })
-                                else:
-                                    st.warning(f"Expected a list of questions in file {file}, but got: {type(data)}")
-                        elif file.endswith('.json'):  # Process other JSON files outside FIB_HTML_CODING
-                            with zip_file.open(file) as json_file:
-                                data = json.load(json_file)
-                                questions = data if isinstance(data, list) else [data]
-                                
-                                for q in questions:
-                                    q_type = q.get('question_type', '')
-                                    if q_type == 'MULTIPLE_CHOICE':
-                                        question_files['default_new'].append((file, q))
-                                    elif q_type == 'CODE_ANALYSIS_MULTIPLE_CHOICE':
-                                        question_files['code_analysis'].append((file, q))
+                        with zip_file.open(file) as json_file:
+                            data = json.load(json_file)
+                            
+                            # Ensure data is a list
+                            if isinstance(data, dict):
+                                data = [data]  # Convert single object to list
+                            elif not isinstance(data, list):
+                                st.warning(f"File {file} does not contain valid JSON data.")
+                                continue
+                            
+                            # Process the data based on question type
+                            for q in data:
+                                q_type = q.get('question_type', '')
+                                if q_type == 'MULTIPLE_CHOICE':
+                                    question_files['default_new'].append((file, q))
+                                elif q_type in ['CODE_ANALYSIS_MULTIPLE_CHOICE', 'CODE_ANALYSIS_TEXTUAL', 'CODE_ANALYSIS_MORE_THAN_ONE_MULTIPLE_CHOICE']:
+                                    question_files['code_analysis'].append((file, q))
+                                elif q_type == 'FIB_HTML_CODING':
+                                    question_files['fib_html'].append((file, q))
+                    except json.JSONDecodeError as e:
+                        st.error(f"Error decoding JSON from file {file}: {str(e)}. Please check the file format.")
                     except Exception as e:
                         st.error(f"Error processing file {file}: {str(e)}")
                 
-                # Create tabs for different question types
-                tab1, tab2, tab3 = st.tabs([
-                    "Default MCQs", 
-                    "Code Analysis MCQs",
-                    "FIB HTML Coding"
-                ])
+                # Create separate sections for each question type
+                st.subheader("Default New Questions")
+                review_default_mcqs(question_files['default_new'])
                 
-                with tab1:
-                    review_default_mcqs(question_files['default_new'])
-                    
-                with tab2:
-                    review_code_analysis_mcqs(question_files['code_analysis'])
-                    
-                with tab3:
-                    review_fib_html_questions()
-                    
+                st.subheader("Code Analysis Questions")
+                review_code_analysis_questions(question_files['code_analysis'])
+                
+                st.subheader("FIB HTML Coding Questions")
+                review_fib_html_questions(question_files['fib_html'])
+                
         except Exception as e:
             st.error(f"Error processing ZIP: {str(e)}")
 
-def review_default_mcqs(questions):
+def get_question_id(question):
+    """Helper function to extract question_id from different possible locations in the question structure"""
+    # Try different possible locations for question_id
+    if 'question_id' in question:
+        return question['question_id']
+    elif 'input_output' in question and question['input_output'] and 'question_id' in question['input_output'][0]:
+        return question['input_output'][0]['question_id']
+    elif 'metadata' in question and 'question_id' in question['metadata']:
+        return question['metadata']['question_id']
+    elif 'id' in question:
+        return question['id']
+    # If no question_id is found, generate one based on the question text
+    else:
+        # Generate a hash of the question text to use as an ID
+        question_text = question.get('question_text', '')
+        if question_text:
+            return f"generated_id_{hash(question_text) % 10000}"
+        return "unknown_id"
+
+def check_question_wording_with_gpt(question_text):
+    """Check if question text contains inappropriate references to code location."""
+    try:
+        prompt = f"""
+        Analyze this question text and check if it inappropriately refers to code location 
+        (e.g., 'code given below', 'following code', 'code below', etc.) since the code will be shown alongside:
+        
+        Question: {question_text}
+        
+        Respond with either:
+        - "OK" if there are no inappropriate references
+        - Or explain what references should be removed/changed
+        """
+        
+        response = openai.ChatCompletion.create(
+            engine="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are analyzing question text formatting."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        result = response['choices'][0]['message']['content']
+        return "OK" in result.upper(), result
+        
+    except Exception as e:
+        return False, f"Error checking question wording: {str(e)}"
+
+def display_mcq_review(question_data):
+    """Enhanced display function for MCQ review"""
+    st.subheader("MCQ Review")
+    
+    # Extract question data
+    question_id = question_data.get('question_id', 'N/A')
+    question_content = question_data.get('question', {}).get('content', '')
+    options = question_data.get('options', [])
+    question_key = question_data.get('question_key', '')
+    tag_names = question_data.get('tag_names', [])
+    
+    # Display basic info
+    st.write(f"**Question ID:** {question_id}")
+    st.write("**Question:**", question_content)
+    st.write("**Tags:**", ", ".join(tag_names))
+    
+    # Display options
+    st.write("**Options:**")
+    for opt in options:
+        status = "✅" if opt.get('is_correct') else "❌"
+        st.write(f"{status} {opt.get('content', '')}")
+    
+    # Perform enhanced validation
+    with st.expander("Review Analysis", expanded=True):
+        # Verify learning outcome
+        outcome_result = verify_mcq_learning_outcome(
+            question_key,
+            tag_names,
+            question_content
+        )
+        
+        if outcome_result.get('achieved'):
+            st.success("✅ Learning Outcome: Question aligns with tags and learning objectives")
+        else:
+            st.warning(f"⚠️ Learning Outcome Issues:\n{outcome_result.get('analysis')}")
+
+def display_fib_review(question_data):
+    """Enhanced display function for FIB HTML coding questions"""
+    st.subheader("FIB HTML Coding Review")
+    
+    # Extract question data
+    question_id = question_data.get('question_id', 'N/A')
+    question_text = question_data.get('question_text', '')
+    
+    # Display basic info
+    st.write(f"**Question ID:** {question_id}")
+    st.write("**Question Text:**", question_text)
+    
+    # Display code sections
+    for code_section in question_data.get('fib_html_coding', []):
+        language = code_section.get('language', '')
+        if language and code_section.get('code_blocks'):
+            st.write(f"**{language} Code:**")
+            combined_code = '\n'.join(
+                block.get('code', '') 
+                for block in sorted(
+                    code_section.get('code_blocks', []),
+                    key=lambda x: x.get('order', 0)
+                )
+            )
+            st.code(combined_code, language=language.lower())
+    
+    # Perform enhanced validation
+    with st.expander("Review Analysis", expanded=True):
+        review_results = review_fib_html_coding(question_data)
+        
+        # Display technical correctness
+        if review_results['technical_correctness']['status']:
+            st.success("✅ Technical: Code is syntactically correct")
+        else:
+            st.warning(f"⚠️ Technical Issues:\n{review_results['technical_correctness']['message']}")
+        
+        # Display wording check
+        if review_results['wording_check']['status']:
+            st.success("✅ Wording: Question properly mentions fill in the blank")
+        else:
+            st.warning(f"⚠️ Wording: {review_results['wording_check']['message']}")
+        
+        # Display code reference check
+        if review_results['code_reference']['status']:
+            st.success("✅ Code Reference: Question properly references code")
+        else:
+            st.warning(f"⚠️ Code Reference: {review_results['code_reference']['message']}")
+        
+        # Display test case analysis
+        if review_results['test_case_coverage']['status']:
+            st.success("✅ Test Cases: Good coverage and validation")
+        else:
+            st.warning(f"⚠️ Test Cases: {review_results['test_case_coverage']['message']}")
+
+def display_code_analysis_question(question_data):
+    """Enhanced display function for code analysis questions"""
+    st.subheader("Question Details")
+    
+    # Extract question data
+    question_id = question_data.get('question_id', 'N/A')
+    question_text = question_data.get('question_text', '')
+    code_metadata = question_data.get('code_metadata', [])
+    input_output = question_data.get('input_output', [{}])[0]
+    
+    # Display basic info
+    st.write(f"**Question ID:** {question_id}")
+    st.write("**Question Text:**", question_text)
+    
+    # Display code if present
+    if code_metadata:
+        code_data = code_metadata[0].get('code_data', '')
+        language = code_metadata[0].get('language', 'text')
+        st.write("**Code:**")
+        st.code(code_data, language=language.lower())
+    
+    # Get correct answer and wrong answers
+    correct_answer = input_output.get('output', [''])[0]
+    wrong_answers = input_output.get('wrong_answers', [])
+    
+    # Perform enhanced validation
+    with st.expander("Review Analysis", expanded=True):
+        # Code Validation
+        if code_data:
+            code_validation_result = validate_code_with_gpt(code_data)
+            if "CORRECT" in code_validation_result:
+                st.success("✅ Code: Technically correct")
+            else:
+                st.warning(f"⚠️ Code Issues:\n{code_validation_result}")
+        
+        # Answer Verification
+        if correct_answer and code_data:
+            verification_result = verify_code_analysis_answer_with_gpt(
+                question_text, 
+                code_data, 
+                correct_answer, 
+                wrong_answers, 
+                question_data.get('question_type', '')
+            )
+            
+            if verification_result['is_correct']:
+                st.success(f"✅ Answer: {verification_result['detailed_analysis']}")
+            else:
+                st.warning(f"⚠️ Answer Verification: {verification_result['detailed_analysis']}")
+
+def verify_code_analysis_answer_with_gpt(question_text, code, correct_answer, wrong_answers, question_type):
+    """Enhanced answer verification using GPT"""
+    set_openai_api_key()  # Ensure API key is set
+    try:
+        # Prepare a comprehensive prompt for verification
+        if question_type == "CODE_ANALYSIS_MULTIPLE_CHOICE":
+            prompt = f"""
+            Carefully analyze the following multiple choice question:
+            
+            Question: {question_text}
+            Code: {code}
+            Correct Answer: {correct_answer}
+            Wrong Answers: {', '.join(wrong_answers)}
+            
+            Evaluation Criteria:
+            1. Is the correct answer truly correct based on the code?
+            2. Are there any nuances or potential ambiguities?
+            3. Verify the technical accuracy of the answer
+            
+            Respond with:
+            - "CORRECT: [Detailed explanation]" if the answer is correct
+            - "INCORRECT: [Detailed explanation of why it's wrong]"
+            """
+        else:  # CODE_ANALYSIS_TEXTUAL
+            prompt = f"""
+            Carefully analyze the following textual question:
+            
+            Question: {question_text}
+            Code: {code}
+            Provided Answer: {correct_answer}
+            
+            Evaluation Criteria:
+            1. Is the provided answer technically accurate based on the code?
+            2. Are there any nuances or potential ambiguities?
+            
+            Respond with:
+            - "CORRECT: [Detailed explanation]" if the answer is correct
+            - "INCORRECT: [Detailed explanation of why it's wrong]"
+            """
+        
+        response = openai.ChatCompletion.create(
+            engine="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a technical expert in code analysis."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        result = response['choices'][0]['message']['content']
+        
+        # Determine if the answer is correct based on the response
+        is_correct = "CORRECT:" in result
+        
+        return {
+            'is_correct': is_correct,
+            'detailed_analysis': result
+        }
+        
+    except Exception as e:
+        return {
+            'is_correct': False,
+            'detailed_analysis': f"Error verifying answer: {str(e)}"
+        }
+    
+def verify_textual_answer_correctness(question_text, code_data, answer):
+    """Verify if the textual answer is correct using GPT."""
+    try:
+        prompt = f"""
+        Analyze this code analysis question and verify if the provided answer is correct:
+        
+        Question: {question_text}
+        Code: {code_data}
+        Provided Answer: {answer}
+      
+        
+        Please analyze:
+        1. Does the answer directly address the question?
+        2. Is the answer technically accurate based on the code?
+        
+        
+        Respond with:
+        - "CORRECT: [Detailed explanation]" if the answer is correct and properly explained
+        - "INCORRECT: [Detailed explanation of why it's wrong and what would be the correct answer]"
+        """
+        
+        response = openai.ChatCompletion.create(
+            engine="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a technical expert in code analysis."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        result = response['choices'][0]['message']['content']
+        is_correct = result.strip().startswith("CORRECT:")
+        
+        return {
+            'is_correct': is_correct,
+            'detailed_analysis': result
+        }
+        
+    except openai.error.RateLimitError as e:
+        print("Rate limit exceeded. Retrying after delay...")
+        time.sleep(40)  # Wait for 40 seconds before retrying
+        return verify_textual_answer_correctness(question_text, code_data, answer)
+    except Exception as e:
+        return {
+            'is_correct': False,
+            'detailed_analysis': f"Error verifying answer correctness: {str(e)}"
+        }
+
+def review_code_analysis_questions(questions):
     if not questions:
-        st.info("No Default MCQ questions found")
+        st.info("No Code Analysis questions found")
         return
         
     # Display total question count
-    st.info(f"Total Default MCQ Questions: {len(questions)}")
+    st.info(f"Total Code Analysis Questions: {len(questions)}")
     
     # Initialize session state for index if not exists
-    if 'default_mcq_index' not in st.session_state:
-        st.session_state.default_mcq_index = 0
+    if 'code_analysis_index' not in st.session_state:
+        st.session_state.code_analysis_index = 0
     
-    # Create dropdown with formatted question number and ID
-    question_options = [f'Question {str(i+1).zfill(2)}: {q[1].get("question_id", "N/A")}' 
-                       for i, q in enumerate(questions)]
+    # Create dropdown with formatted question numbers and IDs
+    question_options = [
+        f'Question {str(i+1).zfill(2)}: {get_question_id(q[1])}' 
+        for i, q in enumerate(questions)
+    ]
     
     selected_index = st.selectbox(
         "Select Question",
         range(len(questions)),
         format_func=lambda x: question_options[x],
-        key="default_mcq_selector",
-        index=st.session_state.default_mcq_index
+        key="code_analysis_selector",
+        index=st.session_state.code_analysis_index
     )
     
     # Update session state when dropdown changes
-    st.session_state.default_mcq_index = selected_index
+    st.session_state.code_analysis_index = selected_index
     
-    _, question = questions[selected_index]
+    # Get the selected question
+    file, question = questions[selected_index]
     
     # Extract required fields
-    question_id = question.get('question_id', 'N/A')
-    question_content = question.get('question', {}).get('content', '')
-    options = question.get('options', [])
-    question_key = question.get('question_key', '')
+    # Ensure question_id is extracted correctly
+    question_id = (
+        question.get('question_id') or 
+        question.get('input_output', [{}])[0].get('question_id') or 
+        question.get('metadata', {}).get('question_id') or 
+        'N/A'
+    )
+    question_text = question.get('question_text', '')
+    question_type = question.get('question_type', 'Unknown')
+    code_metadata = question.get('code_metadata', [])
+    input_output = question.get('input_output', [{}])[0]
+    explanation = question.get('explanation', '')
+
     
-    st.subheader(f"Question ID: {question_id}")
+    # Display question details
+    st.subheader(f"Question Details")
+    st.write(f"**Question ID:** {question_id}")
+    st.write(f"**Question Type:** {question_type}")
+    st.write("**Question Text:**", question_text)
     
-    with st.expander("Question Details", expanded=True):
-        st.write("**Question:**", question_content)
+    # Display code if present
+    if code_metadata:
+        code_data = code_metadata[0].get('code_data', '')
+        language = code_metadata[0].get('language', 'text')
+        st.write("**Code:**")
+        st.code(code_data, language=language.lower())
+    
+    # Display options for Multiple Choice questions
+    if question_type in ['CODE_ANALYSIS_MULTIPLE_CHOICE', 'CODE_ANALYSIS_MORE_THAN_ONE_MULTIPLE_CHOICE']:
         st.write("**Options:**")
-        for opt in options:
-            status = "✅" if opt.get('is_correct') else "❌"
-            st.write(f"{status} {opt.get('content', '')}")
-    
-    with st.expander("Review Results", expanded=True):
-        review_results = ai_review_default_mcq(question_content, options, question_key)
         
-        for category, result in review_results.items():
-            if result['status']:
-                st.success(f"✅ {category}: {result['message']}")
+        # Get correct and wrong answers
+        correct_answer = input_output.get('output', [''])[0]
+        wrong_answers = input_output.get('wrong_answers', [])
+        
+        # Combine and display all options
+        all_options = wrong_answers + [correct_answer]
+        for opt in all_options:
+            # Highlight correct answer
+            if opt == correct_answer:
+                st.write(f"✅ {opt}")
             else:
-                st.warning(f"⚠️ {category}: {result['message']}")
+                st.write(f"❌ {opt}")
+
+    elif question_type == 'CODE_ANALYSIS_TEXTUAL':
+        answer = input_output.get('output', [''])[0]
+        st.write("Answer: " + answer)
+    
+    # Review Guidelines Section
+    with st.expander("Review Guidelines", expanded=True):
+        # 1. Grammar Check
+        grammar_status, grammar_msg = check_grammar_with_gpt(question_text)
+        if grammar_status:
+            st.success("✅ Grammar: Question text is grammatically correct")
+        else:
+            st.warning(f"⚠️ Grammar: {grammar_msg}")
+        
+        # 2. Technical Code Check
+        if code_metadata:
+            code_validation_result = validate_code_with_gpt(code_data)
+            if "CORRECT" in code_validation_result:
+                st.success("✅ Technical: Code is technically correct")
+            else:
+                st.warning(f"⚠️ Technical: {code_validation_result}")
+        
+        # 3. Question Wording Check
+        wording_status, wording_msg = check_question_wording_with_gpt(question_text)
+        if wording_status:
+            st.success("✅ Wording: Question text properly references code")
+        else:
+            st.warning(f"⚠️ Wording: {wording_msg}")
+        
+        # 4. Answer Verification (only for Multiple Choice)
+        if question_type in ['CODE_ANALYSIS_MULTIPLE_CHOICE', 'CODE_ANALYSIS_MORE_THAN_ONE_MULTIPLE_CHOICE']:
+            if correct_answer and code_data:
+                verification_result = verify_code_analysis_answer_with_gpt(
+                    question_text, 
+                    code_data, 
+                    correct_answer, 
+                    wrong_answers, 
+                    question_type
+                )
+                
+                # Modify the display of answer verification
+                if verification_result['is_correct']:
+                    st.success(f"✅ Answer: {verification_result['detailed_analysis']}")
+                else:
+                    # Use warning instead of success for incorrect answers
+                    st.warning(f"⚠️ Answer: {verification_result['detailed_analysis']}")
+
+        elif question_type == 'CODE_ANALYSIS_TEXTUAL':
+            if answer and code_data:
+                # Verify answer correctness
+                correctness_result = verify_textual_answer_correctness(
+                    question_text,
+                    code_data,
+                    answer
+                )
+                print(correctness_result)
+
+                if correctness_result['is_correct']:
+                    # Use success (green) for correct answers
+                    st.success(f"✅ Answer Verification: {correctness_result['detailed_analysis']}")
+                else:
+                    # Use warning (yellow) for incorrect answers
+                    st.warning(f"⚠️ Answer Verification: {correctness_result['detailed_analysis']}")
     
     # Navigation buttons in columns
     col1, col2, col3 = st.columns([1, 4, 1])
     
     with col1:
-        if st.button("← Previous", key="prev_default"):
-            if st.session_state.default_mcq_index > 0:
-                st.session_state.default_mcq_index -= 1
+        if st.button("← Previous", key="prev_code_analysis"):
+            if st.session_state.code_analysis_index > 0:
+                st.session_state.code_analysis_index -= 1
                 st.rerun()
     
     with col2:
         st.write(f"Question {selected_index + 1} of {len(questions)}")
     
     with col3:
-        if st.button("Next →", key="next_default"):
-            if st.session_state.default_mcq_index < len(questions) - 1:
-                st.session_state.default_mcq_index += 1
+        if st.button("Next →", key="next_code_analysis"):
+            if st.session_state.code_analysis_index < len(questions) - 1:
+                st.session_state.code_analysis_index += 1
+                st.rerun()
+                
+def review_fib_html_questions(questions):
+    if not questions:
+        st.info("No FIB HTML Coding questions found")
+        return
+        
+    # Display total question count
+    st.info(f"Total FIB HTML Coding Questions: {len(questions)}")
+    
+    # Initialize session state for index if not exists
+    if 'fib_index' not in st.session_state:
+        st.session_state.fib_index = 0
+    
+    # Create dropdown with formatted question numbers and IDs
+    question_options = [
+        f'Question {str(i+1).zfill(2)}: {q[1].get("question_id", "N/A")}' 
+        for i, q in enumerate(questions)
+    ]
+    
+    selected_index = st.selectbox(
+        "Select Question",
+        range(len(questions)),
+        format_func=lambda x: question_options[x],
+        key="fib_selector",
+        index=st.session_state.fib_index
+    )
+    
+    # Update session state when dropdown changes
+    st.session_state.fib_index = selected_index
+    
+    # Get the selected question
+    _, question = questions[selected_index]
+    
+    # Extract all required information
+    question_id = question.get('question_id', 'N/A')
+    question_text = question.get('question_text', '')
+    question_key = question.get('question_key', '')
+    difficulty = question.get('difficulty', '')
+    tags = question.get('tag_names', [])
+    
+    # Display question details in an expander
+    with st.expander(f"Question Details (ID: {question_id})", expanded=True):
+        # Basic Information
+        st.write("### Basic Information")
+        st.write(f"**Question Key:** {question_key}")
+        st.write(f"**Question Text:** {question_text}")
+        st.write(f"**Difficulty:** {difficulty}")
+        st.write("**Tags:**", ", ".join(tags))
+        
+        # Initial Code
+        st.write("### Initial Code")
+        
+        # Get initial code from fib_html_coding
+        initial_code = question.get('fib_html_coding', [])
+        for code_block in initial_code:
+            language = code_block.get('language', '')
+            if language and code_block.get('code_blocks'):
+                st.write(f"**{language}:**")
+                combined_code = '\n'.join(
+                    block.get('code', '') 
+                    for block in sorted(
+                        code_block.get('code_blocks', []),
+                        key=lambda x: x.get('order', 0)
+                    )
+                )
+                st.code(combined_code, language=language.lower())
+        
+        # Solution Code
+        st.write("### Solution Code")
+        
+        # Get solution code
+        solution_code = question.get('solution', [])
+        for code_block in solution_code:
+            language = code_block.get('language', '')
+            if language and code_block.get('code_blocks'):
+                st.write(f"**{language}:**")
+                combined_code = '\n'.join(
+                    block.get('code', '') 
+                    for block in sorted(
+                        code_block.get('code_blocks', []),
+                        key=lambda x: x.get('order', 0)
+                    )
+                )
+                st.code(combined_code, language=language.lower())
+        
+        # Test Cases
+        st.write("### Test Cases")
+        test_cases = question.get('test_cases', [])
+        for test_case in test_cases:
+            st.write(f"- **{test_case.get('display_text', '')}**")
+            st.write(f"  - Weightage: {test_case.get('weightage', 0)}")
+            st.write(f"  - Evaluation Type: {test_case.get('testcase_evaluation_type', '')}")
+    
+    # Navigation buttons in columns
+    col1, col2, col3 = st.columns([1, 4, 1])
+    
+    with col1:
+        if st.button("← Previous", key="prev_fib"):
+            if st.session_state.fib_index > 0:
+                st.session_state.fib_index -= 1
+                st.rerun()
+    
+    with col2:
+        st.write(f"Question {selected_index + 1} of {len(questions)}")
+    
+    with col3:
+        if st.button("Next →", key="next_fib"):
+            if st.session_state.fib_index < len(questions) - 1:
+                st.session_state.fib_index += 1
                 st.rerun()
 
 def check_grammar_with_gpt(text):
@@ -640,63 +1093,52 @@ def ai_review_default_mcq(question_content, options, question_key):
     
     return results
 
-def review_code_analysis_mcqs(questions):
+def review_default_mcqs(questions):
     if not questions:
-        st.info("No Code Analysis MCQ questions found")
+        st.info("No Default MCQ questions found")
         return
         
     # Display total question count
-    st.info(f"Total Code Analysis Questions: {len(questions)}")
+    st.info(f"Total Default MCQ Questions: {len(questions)}")
     
     # Initialize session state for index if not exists
-    if 'code_analysis_index' not in st.session_state:
-        st.session_state.code_analysis_index = 0
+    if 'default_mcq_index' not in st.session_state:
+        st.session_state.default_mcq_index = 0
     
     # Create dropdown with formatted question number and ID
-    question_options = []
-    for i, (_, q) in enumerate(questions):
-        input_output = q.get('input_output', [])
-        question_id = input_output[0].get('question_id', 'N/A') if input_output else 'N/A'
-        question_options.append(f'Question {i+1}: {question_id}')
+    question_options = [f'Question {str(i+1).zfill(2)}: {q[1].get("question_id", "N/A")}' 
+                       for i, q in enumerate(questions)]
     
     selected_index = st.selectbox(
         "Select Question",
         range(len(questions)),
         format_func=lambda x: question_options[x],
-        key="code_analysis_selector",
-        index=st.session_state.code_analysis_index
+        key="default_mcq_selector",
+        index=st.session_state.default_mcq_index
     )
     
     # Update session state when dropdown changes
-    st.session_state.code_analysis_index = selected_index
+    st.session_state.default_mcq_index = selected_index
     
     _, question = questions[selected_index]
     
     # Extract required fields
-    input_output = question.get('input_output', [{}])[0]
-    question_id = input_output.get('question_id', 'N/A')
-    question_text = question.get('question_text', '')
-    code_data = next((item.get('code_data', '') for item in question.get('code_metadata', []) 
-                     if item.get('language') == 'HTML'), '')
-    wrong_answers = input_output.get('wrong_answers', [])
-    correct_answer = (input_output.get('output', []) or [''])[0]
+    question_id = question.get('question_id', 'N/A')
+    question_content = question.get('question', {}).get('content', '')
+    options = question.get('options', [])
+    question_key = question.get('question_key', '')
     
-    # Display question details
     st.subheader(f"Question ID: {question_id}")
     
     with st.expander("Question Details", expanded=True):
-        st.write("**Question:**", question_text)
-        if code_data:
-            st.write("**Code:**")
-            st.code(code_data, language='html')
+        st.write("**Question:**", question_content)
         st.write("**Options:**")
-        st.write("✅ Correct Answer:", correct_answer)
-        st.write("❌ Wrong Answers:")
-        for ans in wrong_answers:
-            st.write(f"- {ans}")
+        for opt in options:
+            status = "✅" if opt.get('is_correct') else "❌"
+            st.write(f"{status} {opt.get('content', '')}")
     
     with st.expander("Review Results", expanded=True):
-        review_results = ai_review_code_analysis(question_text, code_data, correct_answer, wrong_answers)
+        review_results = ai_review_default_mcq(question_content, options, question_key)
         
         for category, result in review_results.items():
             if result['status']:
@@ -704,400 +1146,23 @@ def review_code_analysis_mcqs(questions):
             else:
                 st.warning(f"⚠️ {category}: {result['message']}")
     
-    # Navigation buttons with st.rerun() instead of st.experimental_rerun()
+    # Navigation buttons in columns
     col1, col2, col3 = st.columns([1, 4, 1])
     
     with col1:
-        if st.button("← Previous", key="prev_code"):
-            if st.session_state.code_analysis_index > 0:
-                st.session_state.code_analysis_index -= 1
+        if st.button("← Previous", key="prev_default"):
+            if st.session_state.default_mcq_index > 0:
+                st.session_state.default_mcq_index -= 1
                 st.rerun()
     
     with col2:
         st.write(f"Question {selected_index + 1} of {len(questions)}")
     
     with col3:
-        if st.button("Next →", key="next_code"):
-            if st.session_state.code_analysis_index < len(questions) - 1:
-                st.session_state.code_analysis_index += 1
+        if st.button("Next →", key="next_default"):
+            if st.session_state.default_mcq_index < len(questions) - 1:
+                st.session_state.default_mcq_index += 1
                 st.rerun()
-
-def verify_code_relevance(question_text, code):
-    """Check if the code is relevant to the question using GPT"""
-    set_openai_api_key()  # Set the API key
-    try:
-        prompt = f"""
-        Please analyze the following question and code to determine if the code is relevant to answering the question:
-        
-        Question: {question_text}
-        Code: {code}
-        
-        Provide a brief explanation of your analysis.
-        """
-        
-        response = openai.ChatCompletion.create(
-            engine="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a technical expert."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
-        return response['choices'][0]['message']['content']
-    except Exception as e:
-        return f"Error verifying code relevance: {str(e)}"
-
-def verify_answer_correctness(question, correct_answer):
-    """Verify if the provided answer is correct using GPT"""
-    set_openai_api_key()  # Set the API key
-    try:
-        prompt = f"""
-        Verify if the following answer is correct based on the question:
-        
-        Question: {question}
-        Given Answer: {correct_answer}
-        
-        If the answer is incorrect, provide the correct answer with a brief explanation.
-        """
-        
-        response = openai.ChatCompletion.create(
-            engine="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a technical expert."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
-        return response['choices'][0]['message']['content']
-    except Exception as e:
-        return f"Error verifying answer correctness: {str(e)}"
-
-def check_format_of_question(question_text):
-    """Check if the question text indicates that code is present below"""
-    phrases_to_check = [
-        "the code given below",
-        "the following code",
-        "see the code below",
-        "the code is as follows",
-        "the code provided below"
-    ]
-    
-    for phrase in phrases_to_check:
-        if phrase in question_text.lower():
-            return False, f"The phrase '{phrase}' should not be present in the question text."
-    
-    return True, "Question format is valid."
-
-def execute_code(code):
-    """Execute the provided code and return the output"""
-    try:
-        # Save the code to a temporary file
-        with open("temp_code.py", "w") as f:
-            f.write(code)
-        
-        # Execute the code and capture the output
-        result = subprocess.run(["python", "temp_code.py"], capture_output=True, text=True)
-        
-        # Clean up the temporary file
-        os.remove("temp_code.py")
-        
-        # Check if the code generates an image
-        if result.returncode == 0:
-            # Assuming the code saves an image as 'output.png'
-            if os.path.exists("output.png"):
-                return "output.png"  # Return the image path
-            return result.stdout  # Return standard output if no image
-        else:
-            return result.stderr  # Return error output if execution fails
-    except Exception as e:
-        return f"Error executing code: {str(e)}"
-
-def ai_review_code_analysis(question_content, code, question_key, correct_answer):
-    """AI-based review for code analysis questions"""
-    # Initialize results with all checks
-    results = {
-        'Format': {'status': True, 'message': 'Question format is valid'},  # Initialize format check
-        'Grammar': {'status': True, 'message': 'No grammar issues found'},
-        'Learning Outcome': {'status': True, 'message': 'Learning outcome is achieved'},
-        'Code Relevance': {'status': True, 'message': 'Code is relevant to the question'},
-        'Answer Validation': {'status': True, 'message': 'Answer appears correct'},
-        'Code Execution Output': ''
-    }
-    
-    # Check format of the question
-    format_status, format_message = check_format_of_question(question_content)
-    results['Format'] = {'status': format_status, 'message': format_message}
-    
-    # Check grammar using GPT
-    grammar_status, grammar_message = check_grammar_with_gpt(question_content)
-    results['Grammar']['status'] = grammar_status
-    results['Grammar']['message'] = grammar_message
-    
-    # Verify learning outcome
-    learning_outcome_message = verify_learning_outcome(question_key, question_content)
-    if "not achieved" in learning_outcome_message.lower():
-        results['Learning Outcome'] = {
-            'status': False,
-            'message': learning_outcome_message
-        }
-    
-    # Verify code relevance
-    code_relevance_message = verify_code_relevance(question_content, code)
-    if "not relevant" in code_relevance_message.lower():
-        results['Code Relevance'] = {
-            'status': False,
-            'message': code_relevance_message
-        }
-    
-    # Verify answer correctness
-    answer_correctness_message = verify_answer_with_gpt(question_content, code, correct_answer)
-    if "incorrect" in answer_correctness_message.lower():
-        results['Answer Validation'] = {
-            'status': False,
-            'message': answer_correctness_message
-        }
-    
-    # Execute the code and capture the output
-    execution_output = execute_code(code)
-    results['Code Execution Output'] = execution_output
-    
-    return results
-
-def display_code_analysis_results(results):
-    """Display the results of the code analysis"""
-    st.subheader("Code Analysis Results")
-    
-    for key, value in results.items():
-        if value['status']:
-            st.success(f"{key}: {value['message']}")
-        else:
-            st.warning(f"{key}: {value['message']}")
-
-def verify_question_with_gpt(question_text):
-    """Verify if the question text is correct using GPT"""
-    prompt = f"Is the following question text correct? If not, please explain why: {question_text}"
-    
-    response = openai.ChatCompletion.create(
-        engine="gpt-4o",  # Use your specific engine
-        messages=[
-            {"role": "system", "content": "You are a language expert."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    return response['choices'][0]['message']['content']
-
-def verify_code_with_gpt(code_data):
-    """Verify if the code data is correct using GPT"""
-    prompt = f"Is the following code correct? If not, please explain why:\n{code_data}"
-    
-    response = openai.ChatCompletion.create(
-        engine="gpt-4o",  # Use your specific engine
-        messages=[
-            {"role": "system", "content": "You are a technical expert."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    return response['choices'][0]['message']['content']
-
-def verify_output_with_gpt(question_text, code_data, wrong_answers, output):
-    """Verify if the output is correct based on the question and code"""
-    prompt = f"""
-    Question: {question_text}
-    Code: {code_data}
-    Wrong Answers: {wrong_answers}
-    Correct Answer: {output}
-    
-    Is the given output correct based on the question and code? If not, please explain why. 
-    If the output is the only correct answer, confirm it as correct. 
-    If the correct answer lies in the wrong answers, indicate that it is incorrect.
-    """
-    
-    response = openai.ChatCompletion.create(
-        engine="gpt-4o",  # Use your specific engine
-        messages=[
-            {"role": "system", "content": "You are a technical expert."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    
-    result = response['choices'][0]['message']['content']
-    
-    # Check if the output matches the expected correct answer
-    if output.lower() in result.lower():
-        st.success("Output is correct: " + result)  # Display in green
-    else:
-        # Check if the output is in the list of wrong answers
-        if output in wrong_answers:
-            st.warning("Output is incorrect: " + result)  # Display in yellow
-        else:
-            st.success("Output is correct: " + result)  # Display in green
-
-def code_analysis_interface():
-    """Interface for code analysis questions"""
-    st.header("Code Analysis Question")
-
-    # Sample question data
-    question_content = "What is the effect of the given code on the grid layout?"
-    code = """
-    <!DOCTYPE html>
-    <html>
-      <head>
-      <script src="https://cdn.tailwindcss.com"></script>
-      </head>
-      <body>
-        <div class="grid grid-cols-4 gap-4">
-          <div class="col-span-2">Item 1</div>
-          <div class="col-span-2">Item 2</div>
-        </div>
-      </body>
-    </html>
-    """
-    expected_output = "Creates a 4-column grid with two items each spanning 2 columns"
-
-    # Display the current question and code
-    st.text_area("Question Content", value=question_content, height=100)
-    st.text_area("Code", value=code, height=200)
-
-    if st.button("Analyze"):
-        # Assuming you have extracted these values from your JSON or input
-        question_text = "Evaluate the given code snippet. Which breakpoint prefix is intended for applying styles on the medium screens defined by Tailwind CSS?"
-        code_data = """
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <script src="https://cdn.tailwindcss.com"></script>
-          </head>
-          <body>
-            <div class="text-xl ____:text-2xl">Content</div>
-          </body>
-        </html>
-        """
-        wrong_answers = ["xl", "lg", "sm"]
-        output = "md"
-
-        # Call the verification function
-        verify_output_with_gpt(question_text, code_data, wrong_answers, output)
-
-def review_fib_html_questions():
-    # Check if the FIB_HTML_CODING folder exists in the uploaded ZIP
-    uploaded_zip = st.file_uploader("Upload Question JSONs", type=['zip'])
-    
-    if uploaded_zip:
-        try:
-            with zipfile.ZipFile(uploaded_zip) as zip_file:
-                # Look for the FIB_HTML_CODING folder
-                fib_html_file = None
-                for file in zip_file.namelist():
-                    # Check if the file is in the FIB_HTML_CODING folder
-                    if 'FIB_HTML_CODING/' in file and file.endswith('.json'):
-                        fib_html_file = file
-                        break
-                
-                if fib_html_file is None:
-                    st.error("No JSON file found in the FIB_HTML_CODING folder.")
-                    return
-                
-                with zip_file.open(fib_html_file) as json_file:
-                    data = json.load(json_file)
-                    
-                    # Ensure data is a list
-                    if not isinstance(data, list):
-                        st.warning("Expected a list of questions in the JSON file.")
-                        return
-                    
-                    fib_questions = [q for q in data if isinstance(q, dict) and q.get('question_type') == 'FIB_HTML_CODING']
-                    
-                    if not fib_questions:
-                        st.info("No FIB HTML questions found in the JSON.")
-                        return
-                    
-                    # Create a dropdown to select a question
-                    question_options = [f"{q.get('question_id', 'Unknown')}: {q.get('question_text', 'No text')}" for q in fib_questions]
-                    selected_question_index = st.selectbox("Select a FIB HTML Question", range(len(fib_questions)), format_func=lambda x: question_options[x])
-                    
-                    # Get the selected question
-                    selected_question = fib_questions[selected_question_index]
-                    
-                    # Extract required fields
-                    question_id = selected_question.get('question_id', 'N/A')
-                    question_text = selected_question.get('question_text', 'N/A')
-                    
-                    # Extract initial code
-                    initial_code = ""
-                    fib_html_coding = selected_question.get('fib_html_coding', [])
-                    if isinstance(fib_html_coding, list):
-                        for code_block in fib_html_coding:
-                            if isinstance(code_block, dict):  # Ensure it's a dictionary
-                                for block in code_block.get('code_blocks', []):
-                                    if isinstance(block, dict):  # Ensure each block is a dictionary
-                                        initial_code += block.get('code', '') + "\n"
-                    
-                    # Extract solution code
-                    solution_code = ""
-                    solution = selected_question.get('solution', [])
-                    if isinstance(solution, list):
-                        for sol in solution:
-                            if isinstance(sol, dict):  # Ensure it's a dictionary
-                                for block in sol.get('code_blocks', []):
-                                    if isinstance(block, dict):  # Ensure each block is a dictionary
-                                        solution_code += block.get('code', '') + "\n"
-                    
-                    # Display the extracted information
-                    st.subheader(f"Question ID: {question_id}")
-                    st.write("**Question Text:**", question_text)
-                    st.write("**Initial Code:**")
-                    st.code(initial_code.strip(), language='html')
-                    st.write("**Solution Code:**")
-                    st.code(solution_code.strip(), language='html')
-        except Exception as e:
-            st.error(f"Error processing ZIP: {str(e)}")
-
-def ai_review_fib_html(question_text, html_code, css_code, solution_html, solution_css, test_cases):
-    """AI-based review for FIB HTML questions"""
-    results = {
-        'Format': {'status': True, 'message': 'Question format is valid'},
-        'Grammar': {'status': True, 'message': 'No grammar issues found'},
-        'Complexity': {'status': True, 'message': 'Language is appropriate'},
-        'Code Keywords': {'status': True, 'message': 'Code keywords are properly formatted'},
-        'Learning Outcome': {'status': True, 'message': 'Aligns with learning outcome'},
-        'Fill Blank Format': {'status': True, 'message': 'Fill in the blank format is correct'},
-        'Test Cases': {'status': True, 'message': 'Test cases are valid'},
-        'Solution Validation': {'status': True, 'message': 'Solution code is valid'}
-    }
-    
-    # Check if question asks to fill in the blank
-    if "fill in the blank" not in question_text.lower():
-        results['Fill Blank Format'] = {
-            'status': False,
-            'message': "Question should explicitly ask to 'fill in the blank'"
-        }
-    
-    # Check code keywords
-    code_keywords = re.findall(r'\b(?:class|id|style|div|span|HTML|CSS)\b', question_text)
-    for keyword in code_keywords:
-        if f"`{keyword}`" not in question_text:
-            results['Code Keywords'] = {
-                'status': False,
-                'message': f"Keyword '{keyword}' should be in backticks"
-            }
-    
-    # Validate test cases
-    if not test_cases:
-        results['Test Cases'] = {
-            'status': False,
-            'message': "Missing test cases"
-        }
-    
-    # Check solution code
-    if not solution_html or not solution_css:
-        results['Solution Validation'] = {
-            'status': False,
-            'message': "Missing solution code"
-        }
-    
-    return results
 
 def check_complexity(text):
     """Check language complexity"""
@@ -1174,6 +1239,100 @@ def display_mcq_with_relevance(mcq_questions):
             st.success(f"✅ {question} - Relevant to the cheat sheet.")
         else:
             st.warning(f"⚠️ {question} - Not relevant to the cheat sheet.")
+
+def review_code_analysis_more_than_one_multiple_choice_questions(questions):
+    if not questions:
+        st.info("No Code Analysis More Than One Multiple Choice questions found")
+        return
+        
+    # Display total question count
+    st.info(f"Total Code Analysis More Than One Multiple Choice Questions: {len(questions)}")
+    
+    for _, question in questions:
+        question_id = question.get('question_id', 'N/A')
+        question_text = question.get('question_text', '')
+        options = question.get('input_output', [{}])[0].get('wrong_answers', [])
+        expected_output = question.get('input_output', [{}])[0].get('output', [''])[0]
+
+        # Display question text and options
+        st.subheader(f"Question ID: {question_id}")
+        st.write(question_text)
+        st.write("Options:")
+        for option in options:
+            st.write(f"- {option}")
+        
+        # Validate expected output
+        if expected_output:
+            st.success(f"✅ Expected output: {expected_output[0]}")
+        else:
+            st.warning(f"⚠️ No expected output found for question ID: {question_id}")
+
+def review_code_analysis_textual_questions(questions):
+    if not questions:
+        st.info("No Code Analysis Textual questions found")
+        return
+        
+    # Display total question count
+    st.info(f"Total Code Analysis Textual Questions: {len(questions)}")
+    
+    for _, question in questions:
+        question_id = question.get('question_id', 'N/A')
+        question_text = question.get('question_text', '')
+        code = question.get('code_metadata', [{}])[0].get('code_data', '')
+        expected_output = question.get('input_output', [{}])[0].get('output', [''])[0]
+
+        # Check grammar
+        grammar_check_result = check_grammar_with_gpt(question_text)
+        if "correct" in grammar_check_result.lower():
+            st.success(f"✅ Grammar is correct for question ID: {question_id}")
+        else:
+            st.warning(f"⚠️ Grammar issue in question ID: {question_id}: {grammar_check_result}")
+
+        # Validate code
+        code_validation_result = validate_code_with_gpt(code)
+        if "correct" in code_validation_result.lower():
+            st.success(f"✅ Code is correct for question ID: {question_id}")
+        else:
+            st.warning(f"⚠️ Code issue in question ID: {question_id}: {code_validation_result}")
+
+        # Validate output
+        output_validation_result = validate_output_with_gpt(question_text, code, expected_output)
+        if expected_output in output_validation_result:
+            st.success(f"✅ Output is correct for question ID: {question_id}")
+        else:
+            st.warning(f"⚠️ Output issue in question ID: {question_id}: {output_validation_result}")
+
+def validate_code_with_gpt(code, language='CSS, HTML, JavaScript, Python,SQL'):
+    """Comprehensive code validation using GPT"""
+    set_openai_api_key()  # Ensure API key is set
+    try:
+        prompt = f"""
+        Perform a comprehensive validation of the following {language} code:
+        
+        Code: {code}
+        
+        Check for:
+        1. Syntax errors
+        2. Potential typos or incorrect property names
+        3. Semantic correctness
+        4. Best practices
+        
+        Provide a detailed analysis highlighting any issues found.
+        If the code is completely correct, respond with "CORRECT: No issues detected".
+        """
+        
+        response = openai.ChatCompletion.create(
+            engine="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a code validation expert."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        validation_result = response['choices'][0]['message']['content']
+        return validation_result
+    except Exception as e:
+        return f"Error validating code: {str(e)}"
 
 if __name__ == "__main__":
     st.set_page_config(
