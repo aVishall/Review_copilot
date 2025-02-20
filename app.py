@@ -271,7 +271,7 @@ def process_uploaded_file(uploaded_file):
         return None
 
 def main():
-    st.title("NxtReview")
+    st.title("NxtReview !!")
     
     # Initialize session state for selected question if not exists
     if 'selected_question' not in st.session_state:
